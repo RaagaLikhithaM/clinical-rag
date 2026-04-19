@@ -15,7 +15,9 @@ the frontend — the UI only calls the API and displays results.
 import requests
 import streamlit as st
 
-API_BASE = "http://localhost:8000"
+import os
+API_BASE = os.getenv("API_BASE", "http://localhost:8000")
+
 
 
 # ══ Page config ════════════════════════════════════════════════════════════════
@@ -179,3 +181,4 @@ with right_col:
                     )
                 except Exception as e:
                     st.error(f"Query failed: {e}")
+
