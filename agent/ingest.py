@@ -7,6 +7,7 @@ No external RAG libraries — pure pdfplumber + tiktoken + Mistral + SQLite.
 
 import os
 import sqlite3
+import time
 import json
 import pdfplumber
 import tiktoken
