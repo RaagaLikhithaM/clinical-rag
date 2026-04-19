@@ -72,7 +72,7 @@ with left_col:
             ]
             try:
                 response = requests.post(
-                    f"{API_BASE}/ingest", files=files_payload, timeout=120
+                    f"{API_BASE}/ingest", files=files_payload, timeout=600
                 )
                 response.raise_for_status()
                 results = response.json()
@@ -146,8 +146,9 @@ with right_col:
                     response = requests.post(
                         f"{API_BASE}/query",
                         json={"question": user_input},
-                        timeout=60,
+                        timeout=120,
                     )
+                    
                     response.raise_for_status()
                     data = response.json()
 
