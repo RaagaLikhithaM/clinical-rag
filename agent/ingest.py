@@ -175,7 +175,7 @@ def store_chunks(chunks: list[dict], vectors: list[np.ndarray]) -> None:
 
 # ══ Public API ═════════════════════════════════════════════════════════════════
 
-def ingest_pdf(pdf_path: str) -> dict:
+def ingest_pdf(pdf_path: str, source_name: str = None) -> dict:
     """Run the full ingestion pipeline for one PDF file.
 
     Skips the file if it has already been ingested (idempotent).
@@ -187,7 +187,7 @@ def ingest_pdf(pdf_path: str) -> dict:
         Dict with keys: source, status, pages, chunks.
     """
     init_db()
-    source = os.path.basename(pdf_path)
+    source = source_name if source_name else os.path.basename(pdf_path)
 
     if source_already_ingested(source):
         return {"source": source, "status": "already_ingested", "chunks": 0}
@@ -209,3 +209,6 @@ def ingest_pdf(pdf_path: str) -> dict:
         "pages":  len(pages),
         "chunks": len(all_chunks),
     }
+
+
+

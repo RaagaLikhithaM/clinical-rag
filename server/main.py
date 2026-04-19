@@ -86,7 +86,7 @@ async def ingest(files: list[UploadFile] = File(...)):
             tmp_path = tmp.name
 
         try:
-            summary = ingest_pdf(tmp_path)
+            summary = ingest_pdf(tmp_path, source_name=upload.filename)
             # Use the original filename as the source identifier
             summary["source"] = upload.filename
             results.append(IngestResponse(**summary))
