@@ -49,37 +49,27 @@ Mistral into concise search phrases before embedding, which improves
 retrieval quality by removing conversational filler words.
 
 ### Architecture diagram
+
 User query
 │
-▼
-Intent detection (Mistral)
+├─► Intent detection ─► CHAT ─► Greeting response (no KB search)
 │
-├── CHAT ──► Greeting response
+└─► SEARCH
 │
-└── SEARCH
+├─► Query rewrite
 │
-▼
-Query rewrite (Mistral)
+├─► Semantic search (cosine similarity)
+├─► Keyword search (BM25)
+└─► Merge results (Reciprocal Rank Fusion)
 │
-▼
-┌───────────────────┐
-│  Hybrid search    │
-│  Semantic + BM25  │
-│  RRF merge        │
-└───────────────────┘
+├─► Similarity below 0.70 ─► Insufficient evidence
 │
-├── Below threshold ──► Insufficient evidence
+└─► Similarity above 0.70
 │
-└── Above threshold
-│
-▼
-Answer generation (Mistral)
-│
-▼
-Hallucination check (Mistral)
-│
-▼
-Cited answer returned
+├─► Generate answer (Mistral)
+├─► Hallucination check (Mistral)
+└─► Cited answer returned to user
+
 ---
 
 ## Knowledge base
