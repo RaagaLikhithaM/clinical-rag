@@ -77,8 +77,15 @@ def run_query(query: str) -> dict:
         }
 
     # Step 6: generate answer
+# Step 6: generate answer
     result = generate_answer(query, search_result["chunks"])
-
+    if result is None:
+        return {
+            "answer":   "Rate limit reached. Please wait 60 seconds and try again.",
+            "sources":  [],
+            "intent":   "SEARCH",
+            "top_score": search_result["top_score"],
+        }
     return {
         "answer":    result["answer"],
         "sources":   result["sources"],
