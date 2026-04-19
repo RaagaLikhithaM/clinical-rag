@@ -12,6 +12,7 @@ easy to find and modify without touching any logic.
 """
 
 import os
+import time
 from mistralai import Mistral
 from dotenv import load_dotenv
 
@@ -197,6 +198,9 @@ def generate_answer(query: str, chunks: list) -> dict:
         temperature=0.2,
     )
     raw_answer = answer_response.choices[0].message.content.strip()
+ # Small delay to respect free tier rate limits
+    time.sleep(1) 
+
 
     # Second call: hallucination check
     verified_response = client.chat.complete(
