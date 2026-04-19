@@ -1,13 +1,36 @@
 # Clinical Protocol Assistant
 
-A retrieval-augmented generation pipeline for clinical guidelines.
-Clinicians and care teams can upload authoritative PDF guidelines and
-ask natural language questions. Every answer is grounded in the
-uploaded documents and includes citations to the source and page number.
-The system refuses to answer when retrieved evidence does not meet a
-minimum confidence threshold.
+A retrieval-augmented generation pipeline for authoritative clinical
+guidelines across musculoskeletal, cardiovascular, and pain management
+domains.
 
-Built for the StackAI Forward Deployed Engineer technical assessment.
+## Clinical context
+
+This system is designed for clinicians, care coordinators, and
+utilization management nurses who need fast, evidence-grounded answers
+from authoritative clinical guidelines at the point of care.Clinicians and care teams can upload authoritative PDF guidelines and
+ask natural language questions.
+
+The knowledge base covers three clinical domains:
+
+Musculoskeletal — the AAOS ACL Clinical Practice Guideline 2022 and
+the Carelon Joint Surgery Clinical Appropriateness Guidelines 2024
+support questions about ACL reconstruction, joint surgery criteria,
+return to sport, and orthopedic prior authorization requirements.
+
+Cardiovascular — the ACC/AHA/HFSA Heart Failure Guideline 2022
+supports questions about HFrEF and HFpEF treatment, GDMT, LVEF
+thresholds, device therapy, and comorbidity management.
+
+Pain management — the CDC Clinical Practice Guideline for Prescribing
+Opioids 2022 supports questions about opioid initiation, dosage,
+duration, and risk assessment for acute, subacute, and chronic pain.
+
+Every answer is grounded in the uploaded documents and includes
+citations to the source file and page number. The system refuses to
+answer when retrieved evidence does not meet a minimum confidence
+threshold of 70 percent, preventing hallucinated clinical guidance.
+
 
 ---
 
