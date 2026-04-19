@@ -19,26 +19,35 @@ from .retrieval import hybrid_search
 def run_query(query: str) -> dict:
     """Run the full RAG pipeline for one user question.
 
-    The steps in order:
-    1. Detect intent. If the query is conversational, return a chat
-       response immediately without touching the knowledge base.
-    2. Rewrite the query to improve retrieval quality.
-    3. Run hybrid search to get the top-k most relevant chunks.
-    4. Check whether the top chunk meets the similarity threshold.
-       If not, return an insufficient evidence response.
-    5. Generate a cited, hallucination-checked answer from the chunks.
+    Steps in order:
+    1. PII check — refuse queries containing personal health information.
+    2. Intent detection — CHAT queries return immediately.
+    3. Query rewrite — improve retrieval quality.
+    4. Hybrid search — semantic + BM25 + RRF + threshold check.
+    5. Answer generation — cited, shaped by query type, hallucination checked.
 
     Args:
         query: the raw user question string.
 
     Returns:
-        Dict with keys:
-            answer:    the final answer string shown to the user.
-            sources:   list of source filenames cited in the answer.
-            intent:    SEARCH or CHAT, for the UI to display.
-            top_score: cosine similarity of the best retrieved chunk.
+        Dict with keys: answer, sources, intent, top_score.
     """
-    # Step 1: intent detection
+    from .generate import (
+        detect_intent, rewrite_query, generate_answer,
+        contains_pii, PII_REFUSAL
+    )
+    from .retrieval import hybrid_search
+
+    # Step 1: PII refusal
+    if contains_pii(query):
+        return {
+            "answer":    PII_REFUSAL,
+            "sources":   [],
+            "intent":    "REFUSED",
+            "top_score": 0.0,
+        }
+
+    # Step 2: intent detection
     intent = detect_intent(query)
 
     if intent == "CHAT":
@@ -50,13 +59,13 @@ def run_query(query: str) -> dict:
             "top_score": 0.0,
         }
 
-    # Step 2: rewrite the query for better retrieval
+    # Step 3: rewrite the query for better retrieval
     rewritten = rewrite_query(query)
 
-    # Step 3: hybrid search using the rewritten query
+    # Step 4: hybrid search
     search_result = hybrid_search(rewritten)
 
-    # Step 4: threshold check
+    # Step 5: threshold check
     if not search_result["sufficient"]:
         return {
             "answer":    "Insufficient evidence — the knowledge base does "
@@ -67,7 +76,7 @@ def run_query(query: str) -> dict:
             "top_score": search_result["top_score"],
         }
 
-    # Step 5: generate answer from retrieved chunks
+    # Step 6: generate answer
     result = generate_answer(query, search_result["chunks"])
 
     return {

@@ -85,6 +85,70 @@ Answer to check:
 
 Verified answer:"""
 
+LIST_ANSWER_PROMPT = """You are a clinical knowledge assistant. The user
+is asking for a list, comparison, or structured breakdown.
+
+Answer using only the evidence provided below. Format your response as a
+structured list or table. Label each item clearly. Cite every item with
+its source using [Source: filename, Page: number].
+
+If the evidence does not contain enough information, say exactly:
+I cannot answer this based on the available guidelines.
+
+Evidence:
+{context}
+
+Question: {query}
+
+Structured answer:"""
+
+
+PII_REFUSAL = """I cannot process queries that contain personal health
+information such as patient names, dates of birth, medical record numbers,
+or Social Security numbers.
+
+Please rephrase your question using general clinical terms without
+identifying information. For example, instead of asking about a specific
+patient, describe the clinical scenario in general terms."""
+
+
+MEDICAL_DISCLAIMER = """
+
+---
+*Clinical disclaimer: This response is generated from published clinical
+guidelines for informational purposes only. It does not constitute medical
+advice and should not replace clinical judgment. Always consult the
+original guideline documents and applicable institutional protocols before
+making clinical decisions.*"""
+# ══ PII detection ══════════════════════════════════════════════════════════════
+
+import re
+
+PII_PATTERNS = [
+    r"\b\d{3}-\d{2}-\d{4}\b",          # SSN format
+    r"\bMRN\s*[:#]?\s*\d+\b",          # medical record number
+    r"\bDOB\s*[:#]?\s*\d{1,2}/\d{1,2}", # date of birth
+    r"\bpatient\s+[A-Z][a-z]+\s+[A-Z][a-z]+\b",  # "patient John Smith"
+]
+
+
+def contains_pii(query: str) -> bool:
+    """Return True if the query appears to contain personal health information.
+
+    Checks for SSN patterns, MRN references, DOB formats, and explicit
+    patient name patterns. Clinical questions phrased in general terms
+    will not be flagged.
+
+    Args:
+        query: the raw user question string.
+
+    Returns:
+        True if PII patterns are detected, False otherwise.
+    """
+    for pattern in PII_PATTERNS:
+        if re.search(pattern, query, re.IGNORECASE):
+            return True
+    return False
 
 # ══ Intent detection ═══════════════════════════════════════════════════════════
 
@@ -101,6 +165,7 @@ def detect_intent(query: str) -> str:
     Returns:
         The string SEARCH or CHAT.
     """
+    
     client = Mistral(api_key=MISTRAL_API_KEY)
     response = client.chat.complete(
         model=GENERATION_MODEL,
@@ -113,6 +178,29 @@ def detect_intent(query: str) -> str:
     )
     result = response.choices[0].message.content.strip().upper()
     return "SEARCH" if "SEARCH" in result else "CHAT"
+def detect_answer_shape(query: str) -> str:
+    """Classify whether the query needs a structured list or prose answer.
+
+    List queries ask for comparisons, rankings, options, or enumerations.
+    Prose queries ask for explanations, recommendations, or single answers.
+
+    Args:
+        query: the rewritten query string.
+
+    Returns:
+        The string LIST or PROSE.
+    """
+    list_triggers = [
+        "list", "compare", "differences", "options", "steps",
+        "criteria", "what are", "which are", "enumerate", "summarise",
+        "summary", "breakdown", "types of", "examples of",
+    ]
+    q_lower = query.lower()
+    for trigger in list_triggers:
+        if trigger in q_lower:
+            return "LIST"
+    return "PROSE"
+
 
 
 # ══ Query rewriting ════════════════════════════════════════════════════════════
@@ -170,10 +258,9 @@ def build_context(chunks: list) -> str:
 def generate_answer(query: str, chunks: list) -> dict:
     """Generate a cited answer from retrieved chunks using Mistral.
 
-    The function runs two Mistral calls. The first generates the
-    initial answer grounded in the retrieved passages. The second
-    runs a hallucination check that removes any claim not supported
-    by the source text.
+    Selects between prose and structured list prompt templates based on
+    the query shape. Appends a medical disclaimer to all clinical answers.
+    Runs a hallucination check as a second Mistral call.
 
     Args:
         query:  the original user question.
@@ -181,26 +268,32 @@ def generate_answer(query: str, chunks: list) -> dict:
 
     Returns:
         Dict with keys:
-            answer:   the verified answer string.
+            answer:   the verified answer string with disclaimer.
             sources:  list of unique source filenames cited.
     """
+    import time
+
     context = build_context(chunks)
     client = Mistral(api_key=MISTRAL_API_KEY)
+
+    # Choose prompt template based on query shape
+    shape = detect_answer_shape(query)
+    prompt_template = LIST_ANSWER_PROMPT if shape == "LIST" else ANSWER_PROMPT
 
     # First call: generate the answer
     answer_response = client.chat.complete(
         model=GENERATION_MODEL,
         messages=[{
             "role": "user",
-            "content": ANSWER_PROMPT.format(context=context, query=query)
+            "content": prompt_template.format(context=context, query=query)
         }],
         max_tokens=600,
         temperature=0.2,
     )
     raw_answer = answer_response.choices[0].message.content.strip()
- # Small delay to respect free tier rate limits
-    time.sleep(1) 
 
+    # Small delay to respect free tier rate limits
+    time.sleep(1)
 
     # Second call: hallucination check
     verified_response = client.chat.complete(
@@ -216,9 +309,14 @@ def generate_answer(query: str, chunks: list) -> dict:
     )
     verified_answer = verified_response.choices[0].message.content.strip()
 
+    # Append medical disclaimer to all clinical answers
+    final_answer = verified_answer + MEDICAL_DISCLAIMER
+
     sources = list({chunk["source"] for chunk in chunks})
 
     return {
-        "answer":  verified_answer,
+        "answer":  final_answer,
         "sources": sources,
     }
+
+
