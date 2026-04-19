@@ -162,16 +162,42 @@ Mistral call per query but significantly reduces the risk of the model
 adding clinical claims not supported by the retrieved text. In a
 healthcare context this is worth the latency cost.
 
----
+## Chunking considerations
 
+PDF text extraction uses pdfplumber over PyPDF2 because clinical guidelines
+contain structured tables, multi-column layouts, and graded recommendation
+headers. pdfplumber preserves spatial layout during extraction. PyPDF2 reads
+characters in stream order which concatenates columns incorrectly for
+multi-column clinical documents.
+
+Chunk size is fixed at 512 tokens with 50-token overlap using the
+cl100k_base tiktoken encoding. 512 tokens represents approximately one to
+two clinical paragraphs — enough context to capture a recommendation along
+with its qualifying conditions and rationale. Smaller chunks (256 tokens)
+lose clinical context; larger chunks (1024 tokens) introduce noise from
+unrelated content on the same page.
+
+The 50-token overlap prevents clinical criteria that span a chunk boundary
+from being split across two incomplete chunks. A criterion like "ACL
+reconstruction is recommended when the patient has failed conservative
+therapy AND presents with functional instability" must appear intact in at
+least one chunk to be retrieved correctly.
+
+Fixed-size chunking was chosen over semantic chunking because clinical
+guidelines have consistent paragraph structures that align naturally with
+fixed windows. Semantic chunking adds complexity without measurable
+retrieval benefit for structured regulatory documents.
+
+---
 ## Libraries used
 
-- [FastAPI](https://fastapi.tiangolo.com) — API framework
-- [Streamlit](https://streamlit.io) — frontend UI
-- [Mistral AI](https://docs.mistral.ai) — embeddings and generation
-- [pdfplumber](https://github.com/jsvine/pdfplumber) — PDF extraction
-- [tiktoken](https://github.com/openai/tiktoken) — token-aware chunking
-- [numpy](https://numpy.org) — vector operations and storage
-- [SQLite](https://www.sqlite.org) — embedded database
-- [pydantic](https://docs.pydantic.dev) — request and response models
-- [uvicorn](https://www.uvicorn.org) — ASGI server
+- [FastAPI](https://fastapi.tiangolo.com) — async Python web framework, automatic OpenAPI docs
+- [Uvicorn](https://www.uvicorn.org) — ASGI server for FastAPI
+- [Streamlit](https://streamlit.io) — frontend chat UI
+- [Mistral AI](https://docs.mistral.ai) — embeddings (mistral-embed) and generation (mistral-large-latest)
+- [pdfplumber](https://github.com/jsvine/pdfplumber) — PDF text extraction preserving clinical layout
+- [tiktoken](https://github.com/openai/tiktoken) — token-aware chunking using cl100k_base encoding
+- [NumPy](https://numpy.org) — vector operations and embedding storage as raw bytes
+- [SQLite3](https://docs.python.org/3/library/sqlite3.html) — embedded database, Python standard library
+- [Pydantic](https://docs.pydantic.dev) — request and response validation models
+- [python-dotenv](https://github.com/theskumar/python-dotenv) — environment variable loading from .env
