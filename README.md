@@ -52,6 +52,8 @@ retrieval quality by removing conversational filler words.
 
 User query
 │
+│
+│
 ├─► Intent detection ─► CHAT ─► Greeting response (no KB search)
 │
 └─► SEARCH
