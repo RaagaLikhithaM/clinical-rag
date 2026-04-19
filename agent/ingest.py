@@ -129,23 +129,48 @@ def chunk_text(text: str, source: str, page: int) -> list[dict]:
 # ══ Embedding ══════════════════════════════════════════════════════════════════
 
 def embed_chunks(texts: list[str]) -> list[np.ndarray]:
-    """Embed text chunks using Mistral mistral-embed in batches of 32.
+    """
+    Batch embed text chunks using Mistral's mistral-embed model.
+    Returns list of numpy float32 vectors.
+    Batches in groups of 32 to respect API limits.
+    Retries with exponential backoff on rate limit errors.
 
     Args:
-        texts: list of chunk text strings.
+        texts: List of text strings to embed.
 
     Returns:
-        List of float32 numpy vectors, one per chunk.
+        List of numpy float32 embedding vectors.
     """
     client   = Mistral(api_key=MISTRAL_API_KEY)
     vectors  = []
-    batch_sz = 32
+    batch_sz = 16  # reduced from 32 to stay under rate limits
 
     for i in range(0, len(texts), batch_sz):
-        batch    = texts[i : i + batch_sz]
-        response = client.embeddings.create(model=EMBED_MODEL, inputs=batch)
-        for item in response.data:
-            vectors.append(np.array(item.embedding, dtype=np.float32))
+        batch = texts[i : i + batch_sz]
+
+        # exponential backoff — retry up to 5 times on 429
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                response = client.embeddings.create(
+                    model=EMBED_MODEL,
+                    inputs=batch
+                )
+                for item in response.data:
+                    vectors.append(np.array(item.embedding, dtype=np.float32))
+                # delay between batches to stay under rate limit
+                time.sleep(1.5)
+                break  # success — exit retry loop
+
+            except Exception as e:
+                if "429" in str(e) or "rate" in str(e).lower():
+                    wait = (2 ** attempt) + 1  # 2, 3, 5, 9, 17 seconds
+                    print(f"Rate limit hit, waiting {wait}s (attempt {attempt+1}/{max_retries})")
+                    time.sleep(wait)
+                    if attempt == max_retries - 1:
+                        raise
+                else:
+                    raise  # non-rate-limit error — raise immediately
 
     return vectors
 

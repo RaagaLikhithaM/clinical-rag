@@ -176,6 +176,8 @@ def detect_intent(query: str) -> str:
         max_tokens=5,
         temperature=0.0,
     )
+
+    
     result = response.choices[0].message.content.strip().upper()
     return "SEARCH" if "SEARCH" in result else "CHAT"
 def detect_answer_shape(query: str) -> str:
@@ -280,43 +282,58 @@ def generate_answer(query: str, chunks: list) -> dict:
     shape = detect_answer_shape(query)
     prompt_template = LIST_ANSWER_PROMPT if shape == "LIST" else ANSWER_PROMPT
 
-    # First call: generate the answer
-    answer_response = client.chat.complete(
-        model=GENERATION_MODEL,
-        messages=[{
-            "role": "user",
-            "content": prompt_template.format(context=context, query=query)
-        }],
-        max_tokens=600,
-        temperature=0.2,
-    )
-    raw_answer = answer_response.choices[0].message.content.strip()
-
-    # Small delay to respect free tier rate limits
-    time.sleep(1)
-
-    # Second call: hallucination check
-    verified_response = client.chat.complete(
-        model=GENERATION_MODEL,
-        messages=[{
-            "role": "user",
-            "content": HALLUCINATION_CHECK_PROMPT.format(
-                context=context, answer=raw_answer
+    # First call: generate the answer — with retry
+    raw_answer = None
+    for attempt in range(5):
+        try:
+            answer_response = client.chat.complete(
+                model=GENERATION_MODEL,
+                messages=[{
+                    "role": "user",
+                    "content": prompt_template.format(
+                        context=context, query=query
+                    )
+                }],
+                max_tokens=600,
+                temperature=0.2,
             )
-        }],
-        max_tokens=600,
-        temperature=0.0,
-    )
-    verified_answer = verified_response.choices[0].message.content.strip()
+            raw_answer = answer_response.choices[0].message.content.strip()
+            break
+        except Exception as e:
+            if "429" in str(e):
+                wait = (2 ** attempt) + 1
+                print(f"Rate limit on generation, waiting {wait}s")
+                time.sleep(wait)
+                if attempt == 4:
+                    raise
+            else:
+                raise
 
-    # Append medical disclaimer to all clinical answers
-    final_answer = verified_answer + MEDICAL_DISCLAIMER
+    time.sleep(1.5)
 
-    sources = list({chunk["source"] for chunk in chunks})
-
-    return {
-        "answer":  final_answer,
-        "sources": sources,
-    }
-
-
+    # Second call: hallucination check — with retry
+    verified_answer = None
+    for attempt in range(5):
+        try:
+            verified_response = client.chat.complete(
+                model=GENERATION_MODEL,
+                messages=[{
+                    "role": "user",
+                    "content": HALLUCINATION_CHECK_PROMPT.format(
+                        context=context, answer=raw_answer
+                    )
+                }],
+                max_tokens=600,
+                temperature=0.0,
+            )
+            verified_answer = verified_response.choices[0].message.content.strip()
+            break
+        except Exception as e:
+            if "429" in str(e):
+                wait = (2 ** attempt) + 1
+                print(f"Rate limit on hallucination check, waiting {wait}s")
+                time.sleep(wait)
+                if attempt == 4:
+                    raise
+            else:
+                raise
