@@ -49,26 +49,22 @@ Mistral into concise search phrases before embedding, which improves
 retrieval quality by removing conversational filler words.
 
 ### Architecture diagram
+## Architecture diagram
 
-User query
-│
-├─► Intent detection ─► CHAT ─► Greeting response (no KB search)
-│
-└─► SEARCH
-│
-├─► Query rewrite
-│
-├─► Semantic search (cosine similarity)
-├─► Keyword search (BM25)
-└─► Merge results (Reciprocal Rank Fusion)
-│
-├─► Similarity below 0.70 ─► Insufficient evidence
-│
-└─► Similarity above 0.70
-│
-├─► Generate answer (Mistral)
-├─► Hallucination check (Mistral)
-└─► Cited answer returned to user
+```mermaid
+flowchart TD
+    A[User query] --> B[Intent detection]
+    B -->|CHAT| C[Greeting response]
+    B -->|SEARCH| D[Query rewrite]
+    D --> E[Semantic search]
+    D --> F[BM25 keyword search]
+    E --> G[RRF merge]
+    F --> G
+    G -->|Below 0.70| H[Insufficient evidence]
+    G -->|Above 0.70| I[Answer generation]
+    I --> J[Hallucination check]
+    J --> K[Cited answer returned]
+```
 
 ---
 
